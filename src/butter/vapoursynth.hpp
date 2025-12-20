@@ -2,6 +2,7 @@
 
 #include "../util/torgbs.hpp"
 #include "main.hpp"
+#include "heatmap.hpp"
 
 namespace butter{
     typedef struct ButterData{
@@ -9,6 +10,7 @@ namespace butter{
         VSNode *distorted;
         ButterComputingImplementation* butterStreams;
         int diffmap;
+        int heatmap;
         int streamnum = 0;
         threadSet<int>* streamSet;
     } ButterData;
@@ -33,6 +35,8 @@ namespace butter{
                 VSVideoFormat formatout;
                 vsapi->queryVideoFormat(&formatout, cfGray, stFloat, 32, 0, 0, core);
                 dst = vsapi->newVideoFrame(&formatout, width, height, NULL, core);
+            } else if (d->heatmap){
+                dst = vsapi->newVideoFrame(vsapi->getVideoFrameFormat(src2), width, height, src2, core);
             } else {
                 dst = vsapi->copyFrame(src2, core);
             }
@@ -62,11 +66,17 @@ namespace butter{
             
             std::tuple<float, float, float> val;
             
+            std::vector<float> diff_buf;
+            
             const int stream = d->streamSet->pop();
             ButterComputingImplementation& butterstream = d->butterStreams[stream];
             try{
                 if (d->diffmap){
                     val = butterstream.run(vsapi->getWritePtr(dst, 0), vsapi->getStride(dst, 0), srcp1, srcp2, lineSize, lineSize2);
+                } else if (d->heatmap){
+                    diff_buf.resize(width * height);
+                    // butterstream expects stride in bytes. For packed float, stride = width * 4.
+                    val = butterstream.run(reinterpret_cast<const uint8_t*>(diff_buf.data()), width * sizeof(float), srcp1, srcp2, lineSize, lineSize2);
                 } else {
                     val = butterstream.run(NULL, 0, srcp1, srcp2, lineSize, lineSize2);
                 }
@@ -78,6 +88,17 @@ namespace butter{
                 return NULL;
             }
             d->streamSet->insert(stream);
+
+            if (d->heatmap) {
+                uint8_t* dst_ptrs[3] = {
+                    vsapi->getWritePtr(dst, 0),
+                    vsapi->getWritePtr(dst, 1),
+                    vsapi->getWritePtr(dst, 2)
+                };
+                int stride = vsapi->getStride(dst, 0);
+                const float* diff_ptr = diff_buf.data();
+                fill_heatmap(diff_ptr, dst_ptrs, stride, width, height);
+            }
     
             vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "_BUTTERAUGLI_QNorm", std::get<0>(val), maReplace);
             vsapi->mapSetFloat(vsapi->getFramePropertiesRW(dst), "_BUTTERAUGLI_3Norm", std::get<1>(val), maReplace);
@@ -155,9 +176,20 @@ namespace butter{
         if (error != peSuccess){
             d.diffmap = 0.;
         }
+        d.heatmap = vsapi->mapGetInt(in, "heatmap", 0, &error);
+        if (error != peSuccess){
+            d.heatmap = 0;
+        }
         int Qnorm = vsapi->mapGetInt(in, "qnorm", 0, &error);
         if (error != peSuccess){
             Qnorm = 2;
+        }
+
+        if (d.diffmap && d.heatmap) {
+             vsapi->mapSetError(out, "Only one of distmap or heatmap can be enabled");
+             vsapi->freeNode(d.reference);
+             vsapi->freeNode(d.distorted);
+             return;
         }
     
         if (d.diffmap){
