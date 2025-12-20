@@ -129,7 +129,7 @@ typedef struct Vship_ButteraugliScore{
 } Vship_ButteraugliScore;
 
 //handler pointer will be replaced, it is a return value. Don't forget to free it after usage.
-EXPORTPREPROCESS Vship_Exception Vship_ButteraugliInit(Vship_ButteraugliHandler* handler, Vship_Colorspace_t src_colorspace, Vship_Colorspace_t dis_colorspace, int Qnorm, float intensity_multiplier);
+EXPORTPREPROCESS Vship_Exception Vship_ButteraugliInit(Vship_ButteraugliHandler* handler, Vship_Colorspace_t src_colorspace, Vship_Colorspace_t dis_colorspace, int Qnorm, float intensity_multiplier, float hf_asymmetry);
 
 //handler pointer can be discarded after this function.
 EXPORTPREPROCESS Vship_Exception Vship_ButteraugliFree(Vship_ButteraugliHandler handler);

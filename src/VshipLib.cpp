@@ -62,7 +62,7 @@ static void VS_CC GpuInfo(const VSMap *in, VSMap *out, void *userData, VSCore * 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->configPlugin("com.lumen.vship", "vship", "VapourSynth SSIMULACRA2 on GPU", VS_MAKE_VERSION(4, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
     vspapi->registerFunction("SSIMULACRA2", "reference:vnode;distorted:vnode;numStream:int:opt;gpu_id:int:opt;", "clip:vnode;", ssimu2::ssimulacra2Create, NULL, plugin);
-    vspapi->registerFunction("BUTTERAUGLI", "reference:vnode;distorted:vnode;qnorm:int:opt;intensity_multiplier:float:opt;distmap:int:opt;heatmap:int:opt;numStream:int:opt;gpu_id:int:opt;", "clip:vnode;", butter::butterCreate, NULL, plugin);
+    vspapi->registerFunction("BUTTERAUGLI", "reference:vnode;distorted:vnode;qnorm:int:opt;intensity_multiplier:float:opt;hf_asymmetry:float:opt;distmap:int:opt;heatmap:int:opt;numStream:int:opt;gpu_id:int:opt;", "clip:vnode;", butter::butterCreate, NULL, plugin);
     vspapi->registerFunction("CVVDP", "reference:vnode;distorted:vnode;model_name:data:opt;model_config_json:data:opt;resizeToDisplay:int:opt;distmap:int:opt;gpu_id:int:opt;", "clip:vnode;", cvvdp::CVVDPCreate, NULL, plugin);
     vspapi->registerFunction("GpuInfo", "gpu_id:int:opt;", "gpu_human_data:data;", GpuInfo, NULL, plugin);
 }
@@ -279,7 +279,7 @@ int Vship_SSIMU2GetDetailedLastError(Vship_SSIMU2Handler handler, char* out_mess
     return cppstr.size()+1;
 }
 
-Vship_Exception Vship_ButteraugliInit(Vship_ButteraugliHandler* handler, Vship_Colorspace_t src_colorspace, Vship_Colorspace_t dis_colorspace, int Qnorm, float intensity_multiplier){
+Vship_Exception Vship_ButteraugliInit(Vship_ButteraugliHandler* handler, Vship_Colorspace_t src_colorspace, Vship_Colorspace_t dis_colorspace, int Qnorm, float intensity_multiplier, float hf_asymmetry){
     Vship_Exception err = Vship_NoError;
     handler->id = HandlerManagerButteraugli.allocate();
     HandlerManagerButteraugli.lock.lock();
@@ -288,7 +288,7 @@ Vship_Exception Vship_ButteraugliInit(Vship_ButteraugliHandler* handler, Vship_C
     HandlerManagerButteraugli.lock.unlock();
     try{
         //Qnorm = 2 by default to mimic old behavior
-        handlerdata->implem.init(src_colorspace, dis_colorspace, Qnorm, intensity_multiplier);
+        handlerdata->implem.init(src_colorspace, dis_colorspace, Qnorm, intensity_multiplier, hf_asymmetry);
     } catch (const VshipError& e){
         handlerdata->lastError = e;
         lastError = e;

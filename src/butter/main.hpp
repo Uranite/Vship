@@ -22,7 +22,7 @@
 
 namespace butter{
 
-float* getdiffmap(float* src1_d[3], float* src2_d[3], float* mem_d, int64_t width, int64_t height, float intensity_multiplier, GaussianHandle& gaussianHandle, hipStream_t stream){
+float* getdiffmap(float* src1_d[3], float* src2_d[3], float* mem_d, int64_t width, int64_t height, float intensity_multiplier, float hf_asymmetry, GaussianHandle& gaussianHandle, hipStream_t stream){
     //Psycho Image planes
 
     float* temp[3] = {mem_d, mem_d+1*width*height, mem_d+2*width*height};
@@ -54,7 +54,7 @@ float* getdiffmap(float* src1_d[3], float* src2_d[3], float* mem_d, int64_t widt
         GPU_CHECK(hipMemsetAsync(block_diff_dc[c], 0, sizeof(float)*width*height, stream));
     }
 
-    const float hf_asymmetry_ = 0.8f;
+    const float hf_asymmetry_ = hf_asymmetry;
 
     const float wUhfMalta = 1.10039032555f;
     const float norm1Uhf = 71.7800275169f;
@@ -115,7 +115,7 @@ float* getdiffmap(float* src1_d[3], float* src2_d[3], float* mem_d, int64_t widt
 }
 
 //expects linear planar RGB as input, mem_d must contain 25 planes (srcs are rewritten so they are unusable after execution)
-float* getmultiscalediffmap(float* src1_d[3], float* src2_d[3], float* mem_d, int64_t width, int64_t height, float intensity_multiplier, GaussianHandle& gaussianHandle, hipStream_t stream){
+float* getmultiscalediffmap(float* src1_d[3], float* src2_d[3], float* mem_d, int64_t width, int64_t height, float intensity_multiplier, float hf_asymmetry, GaussianHandle& gaussianHandle, hipStream_t stream){
     //computing downscaled before we overwrite src in getdiffmap (it s better for memory)
     int64_t nwidth = (width-1)/2+1;
     int64_t nheight = (height-1)/2+1;
@@ -129,18 +129,18 @@ float* getmultiscalediffmap(float* src1_d[3], float* src2_d[3], float* mem_d, in
         downsample(src2_d[i], nsrc2_d[i], width, height, stream);
     }
 
-    float* diffmap = getdiffmap(src1_d, src2_d, mem_d+2*width*height, width, height, intensity_multiplier, gaussianHandle, stream);
+    float* diffmap = getdiffmap(src1_d, src2_d, mem_d+2*width*height, width, height, intensity_multiplier, hf_asymmetry, gaussianHandle, stream);
     //diffmap is stored at mem_d+8*width*height so we can build after that the second smaller scale
     //smaller scale now
     nmem_d = mem_d+3*width*height;
-    float* diffmapsmall = getdiffmap(nsrc1_d, nsrc2_d, nmem_d+6*nwidth*nheight, nwidth, nheight, intensity_multiplier, gaussianHandle, stream);
+    float* diffmapsmall = getdiffmap(nsrc1_d, nsrc2_d, nmem_d+6*nwidth*nheight, nwidth, nheight, intensity_multiplier, hf_asymmetry, gaussianHandle, stream);
 
     addsupersample2X(diffmap, diffmapsmall, width, height, 0.5f, stream);
 
     return diffmap;
 }
 
-std::tuple<float, float, float> butterprocess(const uint8_t *dstp, int64_t dststride, const uint8_t *srcp1[3], const uint8_t *srcp2[3], float* pinned, GaussianHandle& gaussianHandle, VshipColorConvert::Converter converter1, VshipColorConvert::Converter converter2, const int64_t lineSize[3], const int64_t lineSize2[3], int64_t width, int64_t height, int Qnorm, float intensity_multiplier, hipStream_t stream){
+std::tuple<double, double, double> butterprocess(const uint8_t *dstp, int64_t dststride, const uint8_t *srcp1[3], const uint8_t *srcp2[3], float* pinned, GaussianHandle& gaussianHandle, VshipColorConvert::Converter converter1, VshipColorConvert::Converter converter2, const int64_t lineSize[3], const int64_t lineSize2[3], int64_t width, int64_t height, int Qnorm, float intensity_multiplier, float hf_asymmetry, hipStream_t stream){
     int64_t wh = width*height;
     const int64_t totalscalesize = wh;
 
@@ -159,7 +159,7 @@ std::tuple<float, float, float> butterprocess(const uint8_t *dstp, int64_t dstst
     converter1.convert(src1_d, srcp1, lineSize);
     converter2.convert(src2_d, srcp2, lineSize2);
 
-    float* diffmap = getmultiscalediffmap(src1_d, src2_d, mem_d+6*width*height, width, height, intensity_multiplier, gaussianHandle, stream);
+    float* diffmap = getmultiscalediffmap(src1_d, src2_d, mem_d+6*width*height, width, height, intensity_multiplier, hf_asymmetry, gaussianHandle, stream);
 
     //diffmap is in its final form
     if (dstp != NULL){
@@ -187,12 +187,13 @@ class ButterComputingImplementation{
     VshipColorConvert::Converter converter2;
     int Qnorm;
     float intensity_multiplier;
+    float hf_asymmetry;
     int64_t width;
     int64_t height;
     hipStream_t stream;
 public:
     //Qnorm replace the old norm2 and allows getting really any norm wanted
-    void init(Vship_Colorspace_t source_colorspace, Vship_Colorspace_t source_colorspace2, int Qnorm, float intensity_multiplier){
+    void init(Vship_Colorspace_t source_colorspace, Vship_Colorspace_t source_colorspace2, int Qnorm, float intensity_multiplier, float hf_asymmetry){
         GPU_CHECK(hipStreamCreate(&stream));
         converter1.init(source_colorspace, VshipColorConvert::linRGBBT709, stream);
         converter2.init(source_colorspace2, VshipColorConvert::linRGBBT709, stream);
@@ -207,6 +208,7 @@ public:
 
         this->Qnorm = Qnorm;
         this->intensity_multiplier = intensity_multiplier;
+        this->hf_asymmetry = hf_asymmetry;
 
         gaussianhandle.init();
 
@@ -226,7 +228,7 @@ public:
     }
     //if dstp is NULL, distmap won't be retrieved
     std::tuple<double, double, double> run(const uint8_t *dstp, int64_t dststride, const uint8_t* srcp1[3], const uint8_t* srcp2[3], const int64_t lineSize[3], const int64_t lineSize2[3]){
-        return butterprocess(dstp, dststride, srcp1, srcp2, pinned, gaussianhandle, converter1, converter2, lineSize, lineSize2, width, height, Qnorm, intensity_multiplier, stream);
+        return butterprocess(dstp, dststride, srcp1, srcp2, pinned, gaussianhandle, converter1, converter2, lineSize, lineSize2, width, height, Qnorm, intensity_multiplier, hf_asymmetry, stream);
     }
 };
 

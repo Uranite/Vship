@@ -64,7 +64,7 @@ namespace butter{
                 vsapi->getStride(src2, 2),
             };
             
-            std::tuple<float, float, float> val;
+            std::tuple<double, double, double> val;
             
             std::vector<float> diff_buf;
             
@@ -184,6 +184,10 @@ namespace butter{
         if (error != peSuccess){
             Qnorm = 2;
         }
+        float hf_asymmetry = vsapi->mapGetFloat(in, "hf_asymmetry", 0, &error);
+        if (error != peSuccess){
+            hf_asymmetry = 0.8f;
+        }
 
         if (d.diffmap && d.heatmap) {
              vsapi->mapSetError(out, "Only one of distmap or heatmap can be enabled");
@@ -242,7 +246,7 @@ namespace butter{
             data->butterStreams = (ButterComputingImplementation*)malloc(sizeof(ButterComputingImplementation)*d.streamnum);
             if (data->butterStreams == NULL) throw VshipError(OutOfRAM, __FILE__, __LINE__);
             for (int i = 0; i < d.streamnum; i++){
-                data->butterStreams[i].init(src_colorspace, src_colorspace, Qnorm, intensity_multiplier);
+                data->butterStreams[i].init(src_colorspace, src_colorspace, Qnorm, intensity_multiplier, hf_asymmetry);
             }
         } catch (const VshipError& e){
             vsapi->mapSetError(out, e.getErrorMessage().c_str());
