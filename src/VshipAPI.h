@@ -9,6 +9,8 @@
 #if defined(_WIN32)
 #if defined(EXPORTVSHIPLIB)
 #define EXPORTPREPROCESS __declspec(dllexport)
+#elif defined(VSHIP_STATIC)
+#define EXPORTPREPROCESS
 #else
 #define EXPORTPREPROCESS __declspec(dllimport)
 #endif
