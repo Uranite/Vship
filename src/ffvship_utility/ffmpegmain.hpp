@@ -877,12 +877,7 @@ MetricType parse_metric_name(const std::string &name) {
     return MetricType::Unknown;
 }
 
-CommandLineOptions parse_command_line_arguments(int argc, char **argv) {
-    std::vector<std::string> args(argc);
-    for (int i = 0; i < argc; i++){
-        args[i] = argv[i];
-    }
-
+CommandLineOptions parse_command_line_arguments(const std::vector<std::string>& args) {
     helper::ArgParser parser;
 
     std::string metric_name;

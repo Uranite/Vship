@@ -204,8 +204,42 @@ void print_aggergate_metric_statistics(const std::vector<double> &data,
     std::cout << std::endl;
 }
 
+#ifdef _WIN32
+#include <windows.h>
+#include <shellapi.h>
+#endif
+
+std::vector<std::string> get_cli_args(int argc, char** argv) {
+    std::vector<std::string> args;
+#ifdef _WIN32
+    // Windows specific argument parsing to support unicode paths
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+    int arg_count;
+    LPWSTR *szArglist = CommandLineToArgvW(GetCommandLineW(), &arg_count);
+    args.reserve(arg_count);
+    for (int i = 0; i < arg_count; i++) {
+        int size_needed = WideCharToMultiByte(CP_UTF8, 0, szArglist[i], -1, NULL, 0, NULL, NULL);
+        std::string str(size_needed, 0);
+        WideCharToMultiByte(CP_UTF8, 0, szArglist[i], -1, &str[0], size_needed, NULL, NULL);
+        // remove null terminator if present/counted in size
+        if (!str.empty() && str.back() == '\0') str.pop_back(); 
+        args.push_back(str);
+    }
+    LocalFree(szArglist);
+#else
+    args.reserve(argc);
+    for (int i = 0; i < argc; i++) {
+        args.push_back(argv[i]);
+    }
+#endif
+    return args;
+}
+
 int main(int argc, char **argv) {
-    CommandLineOptions cli_args = parse_command_line_arguments(argc, argv);
+    std::vector<std::string> args = get_cli_args(argc, argv);
+    CommandLineOptions cli_args = parse_command_line_arguments(args);
+
     if (cli_args.NoAssertExit){
         return 1; //error is already handled
     }
