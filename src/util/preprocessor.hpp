@@ -16,6 +16,7 @@
 #include <condition_variable>
 #include <cassert>
 #include<cstring>
+#include<algorithm>
 
 
 #if defined __CUDACC__
@@ -76,12 +77,6 @@
     #define hipMemcpyDtoHAsync(x, y, z, w) hipMemcpyAsync(x, y, z, hipMemcpyDeviceToHost, w)
     #define hipMemcpyHtoDAsync(x, y, z, w) hipMemcpyAsync(x, y, z, hipMemcpyHostToDevice, w)
     #define hipMemcpyDtoDAsync(x, y, z, w) hipMemcpyAsync(x, y, z, hipMemcpyDeviceToDevice, w)
-    
-    #ifdef REMOVE_ASYNC_ALLOCATION
-        #define hipMallocAsync hipMalloc
-        #define hipFreeAsync hipFree
-    #endif
-
 #endif
 
 using uint = unsigned int;
