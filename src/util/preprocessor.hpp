@@ -70,6 +70,18 @@
 #else
     #include<hip/hip_runtime.h>
     #include<hip/hip_fp16.h>
+
+    #define hipMemcpyDtoH(x, y, z) hipMemcpy(x, y, z, hipMemcpyDeviceToHost)
+    #define hipMemcpyHtoD(x, y, z) hipMemcpy(x, y, z, hipMemcpyHostToDevice)
+    #define hipMemcpyDtoHAsync(x, y, z, w) hipMemcpyAsync(x, y, z, hipMemcpyDeviceToHost, w)
+    #define hipMemcpyHtoDAsync(x, y, z, w) hipMemcpyAsync(x, y, z, hipMemcpyHostToDevice, w)
+    #define hipMemcpyDtoDAsync(x, y, z, w) hipMemcpyAsync(x, y, z, hipMemcpyDeviceToDevice, w)
+    
+    #ifdef REMOVE_ASYNC_ALLOCATION
+        #define hipMallocAsync hipMalloc
+        #define hipFreeAsync hipFree
+    #endif
+
 #endif
 
 using uint = unsigned int;
