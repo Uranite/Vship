@@ -32,10 +32,12 @@ __global__ void horizontalResizeTranspose_Kernel(float* dst, float* src, int64_t
     const int64_t y = thid/resize_width;
 
     //we need to find the closest corresponding left point on original image
-    const float approx_source_x = (float)x*(float)source_width/(float)resize_width;
+    //-0.5 corresponds to our kernel using location "center" instead of "topleft"
+    const float approx_source_x = (float)(x+0.5f)*(float)source_width/(float)resize_width-0.5f;
     const int64_t x_oriBase = (int64_t)(approx_source_x);
 
-    const float v1 = src[y*source_width+x_oriBase];
+    //x_oriBase can be -1
+    const float v1 = (x_oriBase >= 0) ?  src[y*source_width+x_oriBase] : src[y*source_width+x_oriBase+1];
     const float v0 = (x_oriBase-1 >= 0) ? src[y*source_width+x_oriBase-1] : v1;
     const float v2 = (x_oriBase+1 < source_width) ? src[y*source_width+x_oriBase+1] : v1;
     const float v3 = (x_oriBase+2 < source_width) ? src[y*source_width+x_oriBase+2] : v2;
